@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "SoundCloud repost blocker",
+  "description": "Removes reposted tracks in your SoundCloud stream",
+  "applications": {
+    "gecko": {
+      "id": "screpostblocker@crossbowffs.com"
+    }
+  },
+  "version": "1.0",
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "*://*.soundcloud.com/*"
+  ],
+  "background": {
+    "scripts": ["screpostblocker.js"]
+  }
+}
