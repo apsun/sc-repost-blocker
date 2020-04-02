@@ -90,76 +90,74 @@ function getCookie(key) {
     return null;
 }
 
-(function() {
-    // Get the list of user IDs that the current user is following.
-    // This is necessary in the scenario that the user follows both
-    // users A and B. If A posts a track and B reposts it, the track
-    // will only show up in the stream once as a repost. If we don't
-    // do this, we will end up removing the track altogether from
-    // the stream, even though it's probably something the user
-    // wanted to see.
-    let followings = (async function() {
-        let authToken = getCookie("oauth_token");
-        if (authToken === null) {
-            console.log("Did not find OAuth token for current user");
-            return new Set();
-        }
+// Gets the list of user IDs that the current user is following.
+// This is necessary in the scenario that the user follows both
+// users A and B. If A posts a track and B reposts it, the track
+// will only show up in the stream once as a repost. If we don't
+// do this, we will end up removing the track altogether from
+// the stream, even though it's probably something the user
+// wanted to see.
+async function getFollowings() {
+    let authToken = getCookie("oauth_token");
+    if (authToken === null) {
+        console.log("Did not find OAuth token for current user");
+        return new Set();
+    }
 
-        try {
-            let me = await fetchAuthorized(
-                "https://api-v2.soundcloud.com/me",
-                authToken
-            );
-            let ret = await fetchAuthorized(
-                `https://api-v2.soundcloud.com/users/${me["id"]}/followings/ids`,
-                authToken
-            );
-            let ids = ret["collection"];
-            console.log(`Fetched ${ids.length} followers for current user`);
-            return new Set(ids);
-        } catch (e) {
-            alert(e);
-            return new Set();
-        }
-    })();
+    try {
+        let me = await fetchAuthorized(
+            "https://api-v2.soundcloud.com/me",
+            authToken
+        );
+        let ret = await fetchAuthorized(
+            `https://api-v2.soundcloud.com/users/${me["id"]}/followings/ids`,
+            authToken
+        );
+        let ids = ret["collection"];
+        console.log(`Fetched ${ids.length} followers for current user`);
+        return new Set(ids);
+    } catch (e) {
+        alert(e);
+        return new Set();
+    }
+}
+
+(function() {
+    // Start fetching followings list (note: no await here is intentional)
+    let followings = getFollowings();
 
     // Patch the XMLHttpRequest.send() API to shim the load callback.
     // When the request completes, replace the responseText property
     // to return the filtered JSON object.
+    //
+    // Note that we can't just hook the responseText property descriptor,
+    // since we may potentially need to asynchronously await the result
+    // of loading the followings list. This means we need to do the hooks
+    // in the XHR callbacks.
     let send = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.send = function(body) {
-        let orsc = this.onreadystatechange;
-        this.onreadystatechange = function(e) {
-            let xhr = this;
+        let onload = this.onload;
+        if (onload !== null) {
+            this.onload = function(e) {
+                let xhr = this;
 
-            // If a tree falls in a forest and no one is around to
-            // hear it, does it make a sound?
-            if (orsc === null) {
-                return;
-            }
+                // Ignore requests that are not for the stream API
+                if (!isStreamUrl(xhr.responseURL)) {
+                    onload.call(xhr, e);
+                    return;
+                }
 
-            // Only perform filtering after the response has arrived
-            if (xhr.readyState !== XMLHttpRequest.DONE) {
-                orsc.call(xhr, e);
-                return;
-            }
-
-            // Ignore requests that are not for the stream API
-            if (!isStreamUrl(xhr.responseURL)) {
-                orsc.call(xhr, e);
-                return;
-            }
-
-            // Replace reposts in the API response. Note that we
-            // depend on the followings list, so only perform the
-            // filtering after it's loaded.
-            followings.then((v) => {
-                Object.defineProperty(xhr, "responseText", {
-                    value: filterRepostsInResponse(xhr.responseText, v)
+                // Replace reposts in the API response. Note that we
+                // depend on the followings list, so only perform the
+                // filtering after it's loaded.
+                followings.then((v) => {
+                    Object.defineProperty(xhr, "responseText", {
+                        value: filterRepostsInResponse(xhr.responseText, v)
+                    });
+                    onload.call(xhr, e);
                 });
-                orsc.call(xhr, e);
-            });
-        };
+            };
+        }
         return send.call(this, body);
     };
 })();
