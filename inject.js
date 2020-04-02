@@ -4,6 +4,5 @@
 // that points to the real content script.
 let file = chrome.extension.getURL("/content.js");
 let script = document.createElement("script");
-script.setAttribute("type", "text/javascript");
-script.setAttribute("src", file);
+script.src = file;
 document.documentElement.appendChild(script);
