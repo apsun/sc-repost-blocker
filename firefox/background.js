@@ -5,11 +5,30 @@ function filterReposts(collection) {
     return result;
 }
 
+function replaceReposts(responseText) {
+    let json = JSON.parse(responseText);
+    let newJson = {
+        ...json,
+        "collection": filterReposts(json["collection"])
+    };
+    return JSON.stringify(newJson);
+}
+
+function isStreamUrl(url) {
+    if (url === "") {
+        return false;
+    }
+    try {
+        return new URL(url).pathname === "/stream";
+    } catch (e) {
+        return false;
+    }
+}
+
 function requestListener(request) {
     // Only filter on home stream. If filtering on artist
     // pages is also desired, use startsWith instead.
-    let url = new URL(request.url);
-    if (url.pathname !== "/stream") {
+    if (!isStreamUrl(request.url)) {
         return;
     }
 
@@ -38,15 +57,8 @@ function requestListener(request) {
             return;
         }
 
-        // Filter reposts
-        let json = JSON.parse(body);
-        let newJson = {
-            ...json,
-            "collection": filterReposts(json["collection"])
-        };
-
-        // Output filtered stream
-        filter.write(encoder.encode(JSON.stringify(newJson)));
+        let response = replaceReposts(body);
+        filter.write(encoder.encode(response));
         filter.close();
     };
 }
@@ -54,7 +66,7 @@ function requestListener(request) {
 browser.webRequest.onBeforeRequest.addListener(
     requestListener,
     {
-      "urls": ["*://api-v2.soundcloud.com/*"],
+        "urls": ["*://api-v2.soundcloud.com/*"],
     },
     ["blocking"]
 );
