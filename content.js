@@ -114,7 +114,7 @@ async function getFollowings() {
             authToken
         );
         let ids = ret["collection"];
-        console.log(`Fetched ${ids.length} followers for current user`);
+        console.log(`Fetched ${ids.length} followings for current user`);
         return new Set(ids);
     } catch (e) {
         alert(e);
