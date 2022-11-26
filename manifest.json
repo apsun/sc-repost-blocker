@@ -1,5 +1,5 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "SoundCloud repost blocker",
   "description": "Removes reposted tracks in your SoundCloud stream",
   "browser_specific_settings": {
@@ -8,7 +8,7 @@
     }
   },
   "version": "2.1",
-  "permissions": [
+  "host_permissions": [
     "*://*.soundcloud.com/*"
   ],
   "content_scripts": [
@@ -18,5 +18,10 @@
       "run_at": "document_start"
     }
   ],
-  "web_accessible_resources": ["/content.js"]
+  "web_accessible_resources": [
+    {
+      "matches": ["*://*.soundcloud.com/*"],
+      "resources": ["/content.js"]
+    }
+  ]
 }
