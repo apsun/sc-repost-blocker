@@ -1,19 +1,35 @@
+function shouldFilter(item, followings) {
+    if (item["type"] === "track-repost") {
+        // If the name of the user reposting this track appears
+        // in the title of the track, allow it. This handles the
+        // case of artists reposting tracks from a label or collab.
+        //
+        // Note: this doesn't work if the repost is two levels
+        // detached (e.g. C reposts song from user B that contains
+        // artist A), since we only have the IDs of followings.
+        if (item["track"]["title"].includes(item["user"]["username"])) {
+            return false;
+        }
+        if (!followings.has(item["track"]["user_id"])) {
+            return true;
+        }
+    } else if (item["type"] === "playlist-repost") {
+        if (!followings.has(item["playlist"]["user_id"])) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Returns a copy of the stream collection with all reposts from
 // users that the current user is not also following removed.
 function filterReposts(collection, followings) {
     let result = [];
     for (let i = 0; i < collection.length; ++i) {
         let item = collection[i];
-        if (item["type"] === "track-repost") {
-            if (!followings.has(item["track"]["user_id"])) {
-                continue;
-            }
-        } else if (item["type"] === "playlist-repost") {
-            if (!followings.has(item["playlist"]["user_id"])) {
-                continue;
-            }
+        if (!shouldFilter(item, followings)) {
+            result.push(item);
         }
-        result.push(item);
     }
 
     let filtered = collection.length - result.length;
