@@ -7,21 +7,16 @@
       "id": "screpostblocker@crossbowffs.com"
     }
   },
-  "version": "2.1",
+  "version": "2.2",
   "host_permissions": [
     "*://*.soundcloud.com/*"
   ],
   "content_scripts": [
     {
       "matches": ["*://*.soundcloud.com/*"],
-      "js": ["inject.js"],
-      "run_at": "document_start"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "matches": ["*://*.soundcloud.com/*"],
-      "resources": ["/content.js"]
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ]
 }
