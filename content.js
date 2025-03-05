@@ -50,12 +50,17 @@ function filterReposts(collection, followings) {
 // remove all reposts. Takes a JSON string as input and returns
 // a JSON string after filtering.
 function filterRepostsInResponse(responseText, followings) {
-    let json = JSON.parse(responseText);
-    let newJson = {
-        ...json,
-        "collection": filterReposts(json["collection"], followings)
-    };
-    return JSON.stringify(newJson);
+    try {
+        let json = JSON.parse(responseText);
+        let newJson = {
+            ...json,
+            "collection": filterReposts(json["collection"], followings)
+        };
+        return JSON.stringify(newJson);
+    } catch (e) {
+        alert("SoundCloud repost blocker: failed to filter reposts: " + e);
+        return responseText;
+    }
 }
 
 // Checks whether the given URL is the stream API endpoint.
@@ -142,7 +147,7 @@ async function getFollowings() {
         console.log(`Fetched ${ids.length} followings for current user`);
         return new Set(ids);
     } catch (e) {
-        alert(e);
+        alert("SoundCloud repost blocker: failed to get following list: " + e);
         return new Set();
     }
 }
