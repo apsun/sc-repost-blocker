@@ -163,7 +163,6 @@ async function getFollowingUsers() {
 // in the format {ids: Set<integer>, usernames: Array<string>}
 async function getFollowingIdsAndUsernames() {
     let users = await getFollowingUsers();
-    console.log(users);
     return {
         "ids": new Set(users.map(u => u["id"])),
         "usernames": users.map(u => u["username"]),
