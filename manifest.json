@@ -7,7 +7,7 @@
       "id": "screpostblocker@crossbowffs.com"
     }
   },
-  "version": "2.2",
+  "version": "2.3",
   "host_permissions": [
     "*://*.soundcloud.com/*"
   ],
