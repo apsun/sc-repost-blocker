@@ -1,33 +1,34 @@
+// Returns true if the item should be removed from the response.
 function shouldFilter(item, followings) {
     if (item["type"] === "track-repost") {
-        let username = item["user"]["username"];
-
-        // If the name of the user reposting this track appears
-        // in the title of the track, allow it. This handles the
-        // case of artists reposting tracks from a label or collab.
-        //
-        // Note: this doesn't work if the repost is two levels
-        // detached (e.g. C reposts song from user B that contains
-        // artist A), since we only have the IDs of followings.
-        if (item["track"]["title"].includes(username)) {
+        // Allow if we're following the user who originally posted
+        // the track
+        if (followings["ids"].has(item["track"]["user_id"])) {
             return false;
         }
 
-        // Same as previous check, but with publisher_metadata.artist
-        // field instead of track title
-        if (item["track"]["publisher_metadata"]?.["artist"]?.includes(username)) {
+        // Allow if the track title or artist contains a username
+        // that we're following. This handles the case of artists
+        // reposting tracks from a label or collab.
+        let title = item["track"]["title"];
+        let artist = item["track"]["publisher_metadata"]?.["artist"];
+        if (followings["usernames"].some(u => title.includes(u) || artist?.includes(u))) {
             return false;
         }
 
-        if (!followings.has(item["track"]["user_id"])) {
-            return true;
-        }
+        return true;
     } else if (item["type"] === "playlist-repost") {
-        if (!followings.has(item["playlist"]["user_id"])) {
-            return true;
+        // Allow if we're following the user who originally posted
+        // the playlist
+        if (followings["ids"].has(item["playlist"]["user_id"])) {
+            return false;
         }
+
+        return true;
+    } else {
+        // Unhandled item type, allow
+        return false;
     }
-    return false;
 }
 
 // Returns a copy of the stream collection with all reposts from
@@ -120,18 +121,18 @@ function getCookie(key) {
     return null;
 }
 
-// Gets the list of user IDs that the current user is following.
+// Gets the list of users that the current user is following.
 // This is necessary in the scenario that the user follows both
 // users A and B. If A posts a track and B reposts it, the track
 // will only show up in the stream once as a repost. If we don't
 // do this, we will end up removing the track altogether from
 // the stream, even though it's probably something the user
 // wanted to see.
-async function getFollowings() {
+async function getFollowingUsers() {
     let authToken = getCookie("oauth_token");
     if (authToken === null) {
         console.log("Did not find OAuth token for current user");
-        return new Set();
+        return [];
     }
 
     try {
@@ -139,22 +140,39 @@ async function getFollowings() {
             "https://api-v2.soundcloud.com/me",
             authToken
         );
-        let ret = await fetchAuthorized(
-            `https://api-v2.soundcloud.com/users/${me["id"]}/followings/ids`,
-            authToken
-        );
-        let ids = ret["collection"];
-        console.log(`Fetched ${ids.length} followings for current user`);
-        return new Set(ids);
+
+        // This appears to be limited to 200 server-side, so no point
+        // asking for more than that
+        let followings = [];
+        let url = `https://api-v2.soundcloud.com/users/${me["id"]}/followings?limit=200`;
+        do {
+            let resp = await fetchAuthorized(url, authToken);
+            followings = followings.concat(resp["collection"]);
+            url = resp["next_href"];
+        } while (url !== null);
+
+        console.log(`Fetched ${followings.length} followings for current user`);
+        return followings;
     } catch (e) {
         alert("SoundCloud repost blocker: failed to get following list: " + e);
-        return new Set();
+        return [];
     }
+}
+
+// Returns the ids and usernames of the users that we're following
+// in the format {ids: Set<integer>, usernames: Array<string>}
+async function getFollowingIdsAndUsernames() {
+    let users = await getFollowingUsers();
+    console.log(users);
+    return {
+        "ids": new Set(users.map(u => u["id"])),
+        "usernames": users.map(u => u["username"]),
+    };
 }
 
 (function() {
     // Start fetching followings list (note: no await here is intentional)
-    let followings = getFollowings();
+    let followings = getFollowingIdsAndUsernames();
 
     // Patch the XMLHttpRequest.send() API to shim the load callback.
     // When the request completes, replace the responseText property
