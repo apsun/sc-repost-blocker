@@ -1,5 +1,7 @@
 function shouldFilter(item, followings) {
     if (item["type"] === "track-repost") {
+        let username = item["user"]["username"];
+
         // If the name of the user reposting this track appears
         // in the title of the track, allow it. This handles the
         // case of artists reposting tracks from a label or collab.
@@ -7,9 +9,16 @@ function shouldFilter(item, followings) {
         // Note: this doesn't work if the repost is two levels
         // detached (e.g. C reposts song from user B that contains
         // artist A), since we only have the IDs of followings.
-        if (item["track"]["title"].includes(item["user"]["username"])) {
+        if (item["track"]["title"].includes(username)) {
             return false;
         }
+
+        // Same as previous check, but with publisher_metadata.artist
+        // field instead of track title
+        if (item["track"]["publisher_metadata"]?.["artist"]?.includes(username)) {
+            return false;
+        }
+
         if (!followings.has(item["track"]["user_id"])) {
             return true;
         }
