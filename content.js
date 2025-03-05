@@ -1,5 +1,15 @@
 // Returns true if the item should be removed from the response.
-function shouldFilter(item, followings) {
+function shouldFilter(item, followings, settings) {
+    let maxTrackDurationMs = settings["maxTrackDurationMs"];
+
+    if (maxTrackDurationMs > 0) {
+        let trackDurationMs = item["track"]?.["duration"] ?? 0;
+        if (trackDurationMs > 0 && trackDurationMs > maxTrackDurationMs) {
+            // Filter out any track which duration is longer than maxTrackDurationMs
+            return true;
+        }
+    }
+
     if (item["type"] === "track-repost") {
         // Allow if we're following the user who originally posted
         // the track
@@ -33,11 +43,11 @@ function shouldFilter(item, followings) {
 
 // Returns a copy of the stream collection with all reposts from
 // users that the current user is not also following removed.
-function filterReposts(collection, followings) {
+function filterReposts(collection, followings, settings) {
     let result = [];
     for (let i = 0; i < collection.length; ++i) {
         let item = collection[i];
-        if (!shouldFilter(item, followings)) {
+        if (!shouldFilter(item, followings, settings)) {
             result.push(item);
         }
     }
@@ -50,12 +60,12 @@ function filterReposts(collection, followings) {
 // Modifies a textual version of the stream API response to
 // remove all reposts. Takes a JSON string as input and returns
 // a JSON string after filtering.
-function filterRepostsInResponse(responseText, followings) {
+function filterRepostsInResponse(responseText, followings, settings) {
     try {
         let json = JSON.parse(responseText);
         let newJson = {
             ...json,
-            "collection": filterReposts(json["collection"], followings)
+            "collection": filterReposts(json["collection"], followings, settings)
         };
         return JSON.stringify(newJson);
     } catch (e) {
@@ -169,9 +179,26 @@ async function getFollowingIdsAndUsernames() {
     };
 }
 
+
+// Loads the repost blocker settings from local storage
+async function getRepostBlockerSettings() {
+    let settings = {
+        "maxTrackDurationMs": 0
+    };
+
+    if (typeof chrome !== "undefined" && chrome.storage) {
+        settings = await chrome.storage.sync.get("repostBlocker");
+    }
+    console.log(`Loaded settings ${settings.toString()}`);
+    return settings;
+}
+
 (function() {
-    // Start fetching followings list (note: no await here is intentional)
+    // Start fetching followings list & settings (note: no await here is intentional)
     let followings = getFollowingIdsAndUsernames();
+
+    // Start loading the saved repost blocker settings (note: no await here is intentional)
+    let repostBlockerSettings = getRepostBlockerSettings();
 
     // Patch the XMLHttpRequest.send() API to shim the load callback.
     // When the request completes, replace the responseText property
@@ -197,11 +224,13 @@ async function getFollowingIdsAndUsernames() {
                 // Replace reposts in the API response. Note that we
                 // depend on the followings list, so only perform the
                 // filtering after it's loaded.
-                followings.then((v) => {
-                    Object.defineProperty(xhr, "responseText", {
-                        value: filterRepostsInResponse(xhr.responseText, v)
+                repostBlockerSettings.then((settings) => {
+                    followings.then((v) => {
+                        Object.defineProperty(xhr, "responseText", {
+                            value: filterRepostsInResponse(xhr.responseText, v, settings)
+                        });
+                        onload.call(xhr, e);
                     });
-                    onload.call(xhr, e);
                 });
             };
         }
